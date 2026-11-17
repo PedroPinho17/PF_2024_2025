@@ -1,113 +1,160 @@
-# Assistente de IA para Consulta de Dados
+<div align="center">
+
+# 🤖 Assistente de IA para Consulta de Dados
+
+**Faz uma pergunta aos dados do teu negócio em linguagem natural e recebe a resposta.**
+
+Assistente de linguagem natural → SQL integrado na plataforma de gestão de retalho e restauração da StoresAce.
+
+![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)
+![Django](https://img.shields.io/badge/Django-092E20?logo=django&logoColor=white)
+![Vue.js](https://img.shields.io/badge/Vue.js-4FC08D?logo=vuedotjs&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+![BERT](https://img.shields.io/badge/BERT-Hugging%20Face-FFD21E?logo=huggingface&logoColor=black)
+![LLaMA 3](https://img.shields.io/badge/LLaMA%203-Amazon%20Bedrock-FF9900?logo=amazonwebservices&logoColor=white)
 
 [English](README.md) · **Português**
 
-Projeto Final (estágio) da **Licenciatura em Engenharia Informática** da ESTG – Politécnico do Porto, desenvolvido na **StoresAce** (março–julho 2025).
+<img src="docs/demo.gif" alt="Demonstração ao vivo: perguntas respondidas com o SQL gerado" width="900">
 
-Assistente inteligente integrado na plataforma de gestão de retalho e restauração da StoresAce. O utilizador faz perguntas sobre os dados do negócio em linguagem natural ("Quantas lojas temos?", "Qual o artigo com maior custo médio?") e recebe uma resposta clara, sem precisar de saber onde estão os dados nem de escrever SQL.
+<sub>Demonstração ao vivo na plataforma StoresAce: cada resposta mostra a query SQL que a originou.</sub>
 
-![Assistente a responder em português](docs/chat-pt.png)
+</div>
 
-## Como funciona
+---
 
+## 📌 Sobre
+
+Projeto Final da **Licenciatura em Engenharia Informática** da ESTG – Politécnico do Porto, desenvolvido durante o meu estágio na **StoresAce** (março–julho 2025), uma plataforma SaaS na cloud usada por cadeias de retalho e restauração.
+
+**O problema:** a plataforma guarda dados de vendas, stocks, preços, compras e RH, mas encontrar um número específico obrigava a saber onde ele estava, a navegar por vários relatórios ou a contactar o suporte.
+
+**A solução:** um assistente de chat dentro da plataforma. O utilizador escreve *"Quantas lojas temos?"* ou *"Qual o artigo com maior markup vendido em cada loja em janeiro?"* e recebe uma resposta curta, no seu idioma, junto com o SQL usado para a obter.
+
+## ✨ Destaques
+
+| | |
+|---|---|
+| 🧠 **Classificação de intenções** | BERT afinado decide se a pergunta é uma consulta de dados ou está fora de âmbito |
+| 🛢️ **Text-to-SQL** | LLaMA 3 no Amazon Bedrock escreve PostgreSQL a partir da pergunta, do schema e do contexto |
+| 🔒 **Seguro por desenho** | Só leitura, comandos destrutivos bloqueados, nomes qualificados, tabelas autorizadas |
+| 🌍 **8 idiomas** | Responde sempre no idioma escolhido na interface, seja qual for a língua da pergunta |
+| 🗂️ **Memória da conversa** | As últimas 3 interações ficam como contexto, por isso as perguntas de seguimento funcionam |
+| 🔍 **Respostas transparentes** | Cada resposta mostra o SQL gerado, para poder ser verificado |
+| 👍👎 **Feedback** | Gostei/Não gostei em cada resposta; os "não gostei" críticos enviam e-mail à equipa com a pergunta, a resposta e o SQL |
+
+## ⚙️ Como funciona
+
+```mermaid
+flowchart LR
+    U([Pergunta do utilizador]) --> B{BERT<br/>classificador}
+    B -- fora de âmbito --> R1([Resposta educada])
+    B -- consulta de dados --> L1[LLaMA 3<br/>gera o SQL]
+    L1 --> V[Validação e limpeza<br/>só leitura · qualificado]
+    V --> DB[(PostgreSQL)]
+    DB --> L2[LLaMA 3<br/>escreve a resposta]
+    L2 --> A([Resposta + SQL<br/>no idioma do utilizador])
 ```
-Pergunta ─▶ Classificador de intenção BERT ─┬─▶ Fora de âmbito ─▶ resposta educada
-                                            │
-                                            └─▶ Consulta SQL / Dados
-                                                  │
-                                                  ▼
-                                LLaMA (Amazon Bedrock) gera o SQL
-                                                  │
-                                                  ▼
-                     Validação e limpeza (só leitura, tabelas qualificadas)
-                                                  │
-                                                  ▼
-                                      Execução em PostgreSQL
-                                                  │
-                                                  ▼
-                      LLaMA transforma o resultado numa resposta natural
-```
 
-1. **Classificação de intenção**: um modelo BERT afinado (Hugging Face) decide se a pergunta é uma consulta de dados ou se está fora de âmbito. Previsões com confiança abaixo de 0,75 são tratadas como fora de âmbito.
-2. **Geração de SQL**: o LLaMA, servido pelo Amazon Bedrock, escreve uma query PostgreSQL a partir da pergunta, do schema da base de dados e do contexto da conversa.
-3. **Validação**: o SQL gerado é limpo. Só são permitidos comandos de leitura, os comandos destrutivos são bloqueados e os nomes de tabelas e colunas são qualificados com o schema dinâmico (gerado pelo Django ORM), para prevenir SQL injection.
-4. **Execução**: a query corre sobre um conjunto restrito de tabelas (vendas, stocks, artigos, lojas, preços, orçamentos, previsões…).
-5. **Resposta natural**: o resultado é convertido numa resposta curta, no idioma escolhido pelo utilizador.
+1. **Classificar.** O BERT prevê a intenção. Abaixo de 0,75 de confiança, a pergunta é tratada como fora de âmbito.
+2. **Gerar.** O LLaMA 3 recebe um prompt com a pergunta, o schema da base de dados, a conversa recente e os reportes que a empresa já tinha, e devolve uma query PostgreSQL.
+3. **Validar.** O SQL é limpo: só são permitidos comandos de leitura, e os nomes de tabelas e colunas são qualificados com um schema gerado a partir do Django ORM.
+4. **Executar.** A query corre sobre um conjunto restrito de tabelas: vendas, stocks, artigos, lojas, preços, orçamentos e previsões.
+5. **Responder.** O LLaMA 3 transforma o resultado numa resposta curta e natural, no idioma escolhido.
 
-## Por dentro: dois modelos
+## 🔬 Por dentro
 
-**BERT: classificador de intenções.** Um modelo BERT pré-treinado, afinado (fine-tuning) com um conjunto de perguntas de exemplo criado por mim, para aprender a distinguir perguntas sobre os dados da StoresAce de tudo o resto. Como o BERT lida com vários idiomas, o mesmo classificador funciona seja qual for a língua da pergunta.
+### BERT: o classificador
+Um modelo BERT pré-treinado, afinado (fine-tuning) com um conjunto de perguntas de exemplo que criei para o domínio da StoresAce. A única tarefa dele é decidir *isto é uma pergunta sobre dados?*, por isso é rápido, barato e previsível. É carregado em memória uma única vez (singleton), e as novas intenções são detetadas por hashing para alimentar treinos futuros.
 
-**LLaMA 3: SQL e respostas.** Tudo o que o LLaMA faz assenta em prompt engineering. O prompt de geração de SQL junta:
+### LLaMA 3: SQL e respostas
+Escolhi o LLaMA 3 depois de testar os modelos disponíveis no Amazon Bedrock (Titan, Mistral e LLaMA). Foi o que deu melhores resultados e o que tem mais documentação. O comportamento dele vem do **prompt engineering**:
 
-- **Variáveis**: a pergunta, o schema da base de dados, o contexto da conversa e `reports_SA`
+- **Variáveis**: pergunta, schema, contexto da conversa, `reports_SA`
 - **Regras (guidelines)**: o que o modelo pode e não pode gerar
 - **Ficheiros de apoio**: exemplos de pergunta → SQL
 
-`reports_SA` são os reportes que a StoresAce já tinha, cada um com a descrição e a query SQL. O modelo analisa-os e pode reaproveitar queries já testadas, o que tornou as respostas bastante mais precisas.
+Os `reports_SA` foram o que fez mais diferença. A StoresAce já tinha muitos reportes, cada um com uma descrição e uma query SQL testada. Com eles no prompt, o modelo consegue encontrar um reporte parecido e reaproveitar a query, em vez de escrever joins complexos do zero.
 
-Perguntas usadas na demonstração ao vivo:
+<details>
+<summary><b>Exemplo de SQL gerado</b></summary>
 
-- *Qual é o total de stock do artigo Eggs?*
-- *Qual é o stock do artigo Bananas na loja The Breakfast Club – Marylebone?*
-- *Qual o artigo com o maior sale_markup que foi vendido em cada loja no mês de janeiro?*
+*"Qual o artigo com o maior sale_markup que foi vendido em janeiro?"*
 
-## Arquitetura
+```sql
+WITH ranked_items AS (
+    SELECT i.id AS item_id,
+           i.description AS item_name,
+           SUM(ds.total_quantity) AS total_sold,
+           i.sale_markup,
+           ROW_NUMBER() OVER (ORDER BY i.sale_markup DESC) AS rn
+    FROM demo_uk.da_items_stores_date ds
+    JOIN demo_uk.items i ON ds.item_id = i.id
+    WHERE ds.date >= DATE('2025-01-01')
+      AND ds.date <= DATE('2025-01-31')
+      AND ds.total_quantity > 0
+    GROUP BY i.id, i.description, i.sale_markup
+)
+SELECT item_name FROM ranked_items WHERE rn = 1;
+```
+</details>
 
-<p align="center"><img src="docs/architecture.png" alt="Arquitetura do sistema" width="480"></p>
+## 🏗️ Arquitetura
+
+<table>
+<tr>
+<td width="42%"><img src="docs/architecture.png" alt="Arquitetura do sistema"></td>
+<td>
 
 | Camada | Tecnologias |
 |---|---|
-| Frontend | Vue.js, Vuetify, AJAX |
-| Backend | Python, Django |
-| IA / NLP | BERT (Hugging Face), LLaMA 3 via Amazon Bedrock, MiniLM |
-| Dados | PostgreSQL, Pandas |
-| Processo | Scrum (sprint reviews semanais, PSI diário), Git/GitHub |
+| **Frontend** | Vue.js, Vuetify, AJAX |
+| **Backend** | Python, Django |
+| **IA / NLP** | BERT (Hugging Face), LLaMA 3 (Amazon Bedrock), MiniLM |
+| **Dados** | PostgreSQL, Pandas |
+| **Processo** | Scrum: sprint reviews semanais, PSI diário |
 
-## Funcionalidades
+</td>
+</tr>
+</table>
 
-- 💬 Interface de chat para perguntas em linguagem natural
-- 🧠 Classificação de intenções com BERT e deteção automática de perguntas fora de âmbito
-- 🛢️ Text-to-SQL com LLaMA no Amazon Bedrock
-- 🔒 Validação de SQL: só leitura, bloqueio de comandos destrutivos, prevenção de injection
-- 🌍 **8 idiomas**: o assistente responde sempre no idioma selecionado, mesmo que a pergunta venha noutro
-- 🗂️ Memória de curto prazo: as últimas 3 interações da sessão são mantidas como contexto
-- 👍👎 Feedback Gostei/Não Gostei; os "não gostei" críticos notificam a equipa por e-mail
-- 📋 Gestão de sessões com histórico e datas
-- ⚡ Modelo BERT carregado uma única vez em memória (singleton)
-
-| Respostas multilíngues | Deteção de fora de âmbito |
-|---|---|
-| ![Espanhol](docs/chat-es.png) | ![Fora de âmbito](docs/out-of-scope.png) |
-
-## Endpoints
+### API
 
 | Método | Endpoint | Parâmetros | Descrição |
 |---|---|---|---|
 | `GET` | `/chatbot/` | — | Página do assistente (utilizadores autenticados) |
-| `POST` | `/chatbot/message/` | `question`, `session_id` (opcional) | Envia a pergunta e devolve a resposta, a intenção e o SQL gerado |
-| `POST` | `/chatbot/report-dislike/` | `question`, `answer`, `sql` (opcional) | Feedback negativo; notifica a equipa por e-mail se for crítico |
+| `POST` | `/chatbot/message/` | `question`, `session_id` (opcional) | Devolve a resposta, a intenção e o SQL gerado |
+| `POST` | `/chatbot/report-dislike/` | `question`, `answer`, `sql` (opcional) | Feedback negativo; envia e-mail à equipa se for crítico |
 
-## Conteúdo do repositório
+## 📸 Capturas de ecrã
 
-| Ficheiro | Descrição |
+| Pergunta em português, resposta no idioma escolhido (espanhol) | Deteção de fora de âmbito |
 |---|---|
-| [`PF_ER_Relatorio_8220307.pdf`](PF_ER_Relatorio_8220307.pdf) | Relatório de estágio completo |
-| [`PF_ER_Relatorio_8220307.docx`](PF_ER_Relatorio_8220307.docx) | Documento fonte do relatório |
-| [`Apresentacao/PF_ER_Apresentacao_8220307.pdf`](Apresentacao/PF_ER_Apresentacao_8220307.pdf) | Apresentação feita ao júri (PDF) |
-| [`Apresentacao/PF_ER_Apresentacao_8220307.pptx`](Apresentacao/PF_ER_Apresentacao_8220307.pptx) | Apresentação feita ao júri (PowerPoint) |
-| [`Video/PF_ER_Video_8220307.mp4`](Video/PF_ER_Video_8220307.mp4) | Vídeo de demonstração |
+| ![Espanhol](docs/chat-es.png) | ![Fora de âmbito](docs/out-of-scope.png) |
 
-> O código-fonte pertence à StoresAce e não está incluído. Este repositório documenta o trabalho através do relatório, da apresentação, dos diagramas e da demonstração.
+![Conversa em português](docs/chat-pt.png)
 
-## Trabalho futuro
+## 📂 O que está neste repositório
 
+> O código-fonte pertence à StoresAce e não está publicado. Este repositório documenta o projeto.
+
+| | Ficheiros |
+|---|---|
+| 🎬 **Vídeo de demonstração** (1 min) | [`MP4`](Video/PF_ER_Video_8220307.mp4) |
+| 📊 **Apresentação ao júri** | [`PDF`](Apresentacao/PF_ER_Apresentacao_8220307.pdf) · [`PowerPoint`](Apresentacao/PF_ER_Apresentacao_8220307.pptx) |
+| 📄 **Relatório de estágio** | [`PDF`](PF_ER_Relatorio_8220307.pdf) · [`Word`](PF_ER_Relatorio_8220307.docx) |
+
+## 🚀 Resultados e trabalho futuro
+
+**Entregue:** um assistente funcional integrado na plataforma StoresAce. Responde com dados reais em 8 idiomas e reduz a necessidade de contactar o suporte para consultas simples.
+
+**Próximos passos:**
 - Cobrir as restantes tabelas da base de dados e responder a perguntas mais complexas
-- Usar o assistente para apoiar a equipa de suporte, sugerindo respostas a partir de uma base de conhecimento da StoresAce
-- Guardar o modelo de intenções num bucket (ou na base de dados) em vez de num ficheiro local, para uma solução mais escalável e cloud-native
+- Evoluir para um help center com IA, que sugere respostas à equipa de suporte a partir de uma base de conhecimento
+- Passar o modelo de intenções de um ficheiro local para um bucket na cloud, numa solução escalável e cloud-native
 
-## Autor
+## 👤 Autor
 
-**Pedro Pinho**: [GitHub](https://github.com/PedroPinho17) · [LinkedIn](https://www.linkedin.com/in/pedropinho19/)
+**Pedro Pinho** · [GitHub](https://github.com/PedroPinho17) · [LinkedIn](https://www.linkedin.com/in/pedropinho19/)
 
 Orientadores: Prof. Doutor Marco Gomes (ESTG/P.Porto) · Eng. Ivo Marinho (StoresAce)
