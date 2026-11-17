@@ -39,7 +39,7 @@ Final project for the **BSc in Computer Engineering** at ESTG – Polytechnic of
 | 🛢️ **Text-to-SQL** | LLaMA 3 on Amazon Bedrock writes PostgreSQL from the question, the schema and the context |
 | 🔒 **Safe by design** | Read-only queries, destructive commands blocked, schema-qualified names, whitelisted tables |
 | 🌍 **8 languages** | Always answers in the language selected in the UI, whatever language the question is in |
-| 🗂️ **Conversation memory** | The last 3 exchanges are kept as context, so follow-up questions work |
+| 🗂️ **Conversation memory** | The last 3 exchanges are kept as context, so follow-up questions work; inactive sessions are cleared after 24h |
 | 🔍 **Transparent answers** | Each answer shows the generated SQL, so it can be checked |
 | 👍👎 **Feedback loop** | Like/dislike per answer; critical dislikes email the team with the question, answer and SQL |
 
@@ -60,7 +60,7 @@ flowchart LR
 2. **Generate.** LLaMA 3 receives a prompt with the question, the database schema, the recent conversation and the company's existing reports, and returns a PostgreSQL query.
 3. **Validate.** The SQL is cleaned: only read commands are allowed, and table and column names are qualified against a schema generated from the Django ORM.
 4. **Execute.** The query runs on a whitelisted set of tables: sales, stock, items, stores, prices, budgets and forecasts.
-5. **Answer.** LLaMA 3 turns the rows into a short, human answer in the selected language.
+5. **Answer.** LLaMA 3 turns the rows into a short, human answer in the selected language. When nothing is found it says so, and if the query or an external API fails the user gets a friendly message instead of an error.
 
 ## 🔬 Under the hood
 
@@ -139,6 +139,33 @@ Business *recommendations* (e.g. pricing suggestions) were also part of the orig
 | `GET` | `/chatbot/` | — | Assistant page (authenticated users) |
 | `POST` | `/chatbot/message/` | `question`, `session_id` (optional) | Returns the answer, the intent and the generated SQL |
 | `POST` | `/chatbot/report-dislike/` | `question`, `answer`, `sql` (optional) | Negative feedback; emails the team when critical |
+
+## 📐 Engineering process
+
+**Requirements.** I gathered requirements in weekly meetings with the StoresAce team and documented them following SWEBOK: 9 functional and 7 non-functional, each with priority, constraints and acceptance criteria. Some of the targets:
+
+| Requirement | Acceptance criterion |
+|---|---|
+| Intent classification | ≥ 80% precision |
+| Response time | ≥ 90% of answers in ≤ 5 s |
+| Large data volumes | ≤ 6 s on tables with more than 1M rows |
+| SQL injection | Penetration tests cannot run `DELETE`, `DROP` or `UPDATE` |
+| Data access | Read-only: neither the database user nor the ORM allows writes |
+| Answer clarity | No SQL or technical jargon in the answer text |
+
+**Method.** Scrum adapted to a one-person team: weekly sprint reviews with the supervisors, a short daily check-in, and tasks tracked by sprint. The work ran in four phases: study & prototyping → features → verification mechanisms → integration into the StoresAce codebase.
+
+<details>
+<summary><b>Sequence diagram</b> (including the no-data, error and out-of-scope paths)</summary>
+
+![Sequence diagram](docs/sequence.png)
+</details>
+
+<details>
+<summary><b>Project timeline</b> (March–June 2025)</summary>
+
+![Gantt chart](docs/timeline.png)
+</details>
 
 ## 📸 Screenshots
 

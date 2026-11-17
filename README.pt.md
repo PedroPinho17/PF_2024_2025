@@ -39,7 +39,7 @@ Projeto Final da **Licenciatura em Engenharia Informática** da ESTG – Polité
 | 🛢️ **Text-to-SQL** | LLaMA 3 no Amazon Bedrock escreve PostgreSQL a partir da pergunta, do schema e do contexto |
 | 🔒 **Seguro por desenho** | Só leitura, comandos destrutivos bloqueados, nomes qualificados, tabelas autorizadas |
 | 🌍 **8 idiomas** | Responde sempre no idioma escolhido na interface, seja qual for a língua da pergunta |
-| 🗂️ **Memória da conversa** | As últimas 3 interações ficam como contexto, por isso as perguntas de seguimento funcionam |
+| 🗂️ **Memória da conversa** | As últimas 3 interações ficam como contexto, por isso as perguntas de seguimento funcionam; as sessões inativas são apagadas ao fim de 24h |
 | 🔍 **Respostas transparentes** | Cada resposta mostra o SQL gerado, para poder ser verificado |
 | 👍👎 **Feedback** | Gostei/Não gostei em cada resposta; os "não gostei" críticos enviam e-mail à equipa com a pergunta, a resposta e o SQL |
 
@@ -60,7 +60,7 @@ flowchart LR
 2. **Gerar.** O LLaMA 3 recebe um prompt com a pergunta, o schema da base de dados, a conversa recente e os reportes que a empresa já tinha, e devolve uma query PostgreSQL.
 3. **Validar.** O SQL é limpo: só são permitidos comandos de leitura, e os nomes de tabelas e colunas são qualificados com um schema gerado a partir do Django ORM.
 4. **Executar.** A query corre sobre um conjunto restrito de tabelas: vendas, stocks, artigos, lojas, preços, orçamentos e previsões.
-5. **Responder.** O LLaMA 3 transforma o resultado numa resposta curta e natural, no idioma escolhido.
+5. **Responder.** O LLaMA 3 transforma o resultado numa resposta curta e natural, no idioma escolhido. Se não houver dados, diz isso mesmo; se a query ou uma API externa falhar, o utilizador recebe uma mensagem amigável em vez de um erro.
 
 ## 🔬 Por dentro
 
@@ -139,6 +139,33 @@ As *recomendações* de negócio (por exemplo, sugestões de preços) também fa
 | `GET` | `/chatbot/` | — | Página do assistente (utilizadores autenticados) |
 | `POST` | `/chatbot/message/` | `question`, `session_id` (opcional) | Devolve a resposta, a intenção e o SQL gerado |
 | `POST` | `/chatbot/report-dislike/` | `question`, `answer`, `sql` (opcional) | Feedback negativo; envia e-mail à equipa se for crítico |
+
+## 📐 Processo de engenharia
+
+**Requisitos.** Levantei os requisitos em reuniões semanais com a equipa da StoresAce e documentei-os segundo o SWEBOK: 9 funcionais e 7 não funcionais, cada um com prioridade, restrições e critérios de aceitação. Alguns dos objetivos:
+
+| Requisito | Critério de aceitação |
+|---|---|
+| Classificação de intenções | Precisão ≥ 80% |
+| Tempo de resposta | ≥ 90% das respostas em ≤ 5 s |
+| Grandes volumes de dados | ≤ 6 s em tabelas com mais de 1M de registos |
+| SQL injection | Testes de penetração não conseguem executar `DELETE`, `DROP` ou `UPDATE` |
+| Acesso aos dados | Só leitura: nem o utilizador da base de dados nem o ORM permitem escritas |
+| Clareza da resposta | Sem SQL nem jargão técnico no texto da resposta |
+
+**Metodologia.** Scrum adaptado a uma equipa de uma pessoa: sprint reviews semanais com os orientadores, um PSI diário e as tarefas registadas por sprint. O trabalho decorreu em quatro fases: estudo e prototipagem → funcionalidades → mecanismos de verificação → integração no código da StoresAce.
+
+<details>
+<summary><b>Diagrama de sequência</b> (inclui os casos sem dados, de erro e fora de âmbito)</summary>
+
+![Diagrama de sequência](docs/sequence.png)
+</details>
+
+<details>
+<summary><b>Cronograma do projeto</b> (março–junho 2025)</summary>
+
+![Diagrama de Gantt](docs/timeline.png)
+</details>
 
 ## 📸 Capturas de ecrã
 
