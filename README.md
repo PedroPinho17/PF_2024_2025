@@ -1,92 +1,160 @@
-# AI Assistant for Data Querying
+<div align="center">
+
+# 🤖 AI Assistant for Data Querying
+
+**Ask your business data a question in plain language and get the answer.**
+
+Natural-language → SQL assistant built into the StoresAce retail & restaurant management platform.
+
+![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)
+![Django](https://img.shields.io/badge/Django-092E20?logo=django&logoColor=white)
+![Vue.js](https://img.shields.io/badge/Vue.js-4FC08D?logo=vuedotjs&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+![BERT](https://img.shields.io/badge/BERT-Hugging%20Face-FFD21E?logo=huggingface&logoColor=black)
+![LLaMA 3](https://img.shields.io/badge/LLaMA%203-Amazon%20Bedrock-FF9900?logo=amazonwebservices&logoColor=white)
 
 **English** · [Português](README.pt.md)
 
-Final project (internship) for the **BSc in Computer Engineering** at ESTG – Polytechnic of Porto, developed at **StoresAce** (March–July 2025).
+<img src="docs/demo.gif" alt="Live demo: questions answered together with the generated SQL" width="900">
 
-An intelligent assistant integrated into the StoresAce retail & restaurant management platform. Users ask questions about their business data in natural language ("How many stores do we have?", "Which item had the highest average cost?") and get a clear answer, without needing to know where the data lives or how to write SQL.
+<sub>Live demo on the StoresAce platform: every answer shows the SQL query that produced it.</sub>
 
-![Assistant answering questions in Portuguese](docs/chat-pt.png)
+</div>
 
-## How it works
+---
 
+## 📌 About
+
+Final project for the **BSc in Computer Engineering** at ESTG – Polytechnic of Porto, developed during my internship at **StoresAce** (March–July 2025), a cloud SaaS platform used by retail and restaurant chains.
+
+**The problem:** the platform holds sales, stock, price, purchasing and HR data, but finding one specific number meant knowing where it lived, clicking through reports, or contacting support.
+
+**The solution:** a chat assistant inside the platform. The user types *"How many stores do we have?"* or *"Which item with the highest markup was sold in each store in January?"* and gets a short answer in their own language, together with the SQL used to get it.
+
+## ✨ Highlights
+
+| | |
+|---|---|
+| 🧠 **Intent classification** | Fine-tuned BERT decides whether a question is a data query or out of scope |
+| 🛢️ **Text-to-SQL** | LLaMA 3 on Amazon Bedrock writes PostgreSQL from the question, the schema and the context |
+| 🔒 **Safe by design** | Read-only queries, destructive commands blocked, schema-qualified names, whitelisted tables |
+| 🌍 **8 languages** | Always answers in the language selected in the UI, whatever language the question is in |
+| 🗂️ **Conversation memory** | The last 3 exchanges are kept as context, so follow-up questions work |
+| 🔍 **Transparent answers** | Each answer shows the generated SQL, so it can be checked |
+| 👍👎 **Feedback loop** | Like/dislike per answer; critical dislikes email the team with the question, answer and SQL |
+
+## ⚙️ How it works
+
+```mermaid
+flowchart LR
+    U([User question]) --> B{BERT<br/>intent classifier}
+    B -- out of scope --> R1([Polite refusal])
+    B -- data query --> L1[LLaMA 3<br/>generates SQL]
+    L1 --> V[Validate & sanitise<br/>read-only · qualified]
+    V --> DB[(PostgreSQL)]
+    DB --> L2[LLaMA 3<br/>writes the answer]
+    L2 --> A([Answer + SQL<br/>in the user's language])
 ```
-Question ─▶ BERT intent classifier ─┬─▶ Out-of-scope ─▶ polite refusal
-                                    │
-                                    └─▶ SQL / Data Query
-                                          │
-                                          ▼
-                              LLaMA (Amazon Bedrock) generates SQL
-                                          │
-                                          ▼
-                       Validation & sanitisation (read-only, schema-qualified)
-                                          │
-                                          ▼
-                                 Executed on PostgreSQL
-                                          │
-                                          ▼
-                LLaMA turns the result into a natural-language answer
+
+1. **Classify.** BERT predicts the intent. Below 0.75 confidence the question is treated as out of scope.
+2. **Generate.** LLaMA 3 receives a prompt with the question, the database schema, the recent conversation and the company's existing reports, and returns a PostgreSQL query.
+3. **Validate.** The SQL is cleaned: only read commands are allowed, and table and column names are qualified against a schema generated from the Django ORM.
+4. **Execute.** The query runs on a whitelisted set of tables: sales, stock, items, stores, prices, budgets and forecasts.
+5. **Answer.** LLaMA 3 turns the rows into a short, human answer in the selected language.
+
+## 🔬 Under the hood
+
+### BERT: the classifier
+A pre-trained BERT model, fine-tuned on a dataset of example questions I wrote for the StoresAce domain. Its only job is to decide *is this a data question?*, so it is fast, cheap and predictable. It is loaded into memory once as a singleton, and new intents are detected by hashing so they can feed future retraining.
+
+### LLaMA 3: SQL and answers
+I chose LLaMA 3 after testing the models available on Amazon Bedrock (Titan, Mistral and LLaMA). It gave the best results and has the best documentation. Its behaviour comes from **prompt engineering**:
+
+- **Variables**: question, schema, conversation context, `reports_SA`
+- **Guidelines**: rules for what the model may and may not generate
+- **Support files**: curated question → SQL examples
+
+`reports_SA` made the biggest difference. StoresAce already had many reports, each with a description and a tested SQL query. With those in the prompt, the model can find a similar report and reuse its query instead of writing complex joins from scratch.
+
+<details>
+<summary><b>Example of generated SQL</b></summary>
+
+*"Which item with the highest sale markup was sold in January?"*
+
+```sql
+WITH ranked_items AS (
+    SELECT i.id AS item_id,
+           i.description AS item_name,
+           SUM(ds.total_quantity) AS total_sold,
+           i.sale_markup,
+           ROW_NUMBER() OVER (ORDER BY i.sale_markup DESC) AS rn
+    FROM demo_uk.da_items_stores_date ds
+    JOIN demo_uk.items i ON ds.item_id = i.id
+    WHERE ds.date >= DATE('2025-01-01')
+      AND ds.date <= DATE('2025-01-31')
+      AND ds.total_quantity > 0
+    GROUP BY i.id, i.description, i.sale_markup
+)
+SELECT item_name FROM ranked_items WHERE rn = 1;
 ```
+</details>
 
-1. **Intent classification** – a fine-tuned BERT model (Hugging Face) decides whether the question is a data query or out of scope. Predictions below 0.75 confidence are treated as out of scope.
-2. **SQL generation** – LLaMA, served through Amazon Bedrock, writes a PostgreSQL query from the question, the database schema and the conversation context.
-3. **Validation** – the generated SQL is sanitised: only read commands are allowed, destructive statements are blocked, and table/column names are qualified against the dynamic schema (generated via the Django ORM) to prevent SQL injection.
-4. **Execution** – the query runs against a whitelisted set of tables (sales, stock, items, stores, prices, budgets, forecasts…).
-5. **Natural response** – the rows are turned into a short human answer in the user's selected language.
+## 🏗️ Architecture
 
-## Architecture
-
-<p align="center"><img src="docs/architecture.png" alt="System architecture" width="480"></p>
+<table>
+<tr>
+<td width="42%"><img src="docs/architecture.png" alt="System architecture"></td>
+<td>
 
 | Layer | Technologies |
 |---|---|
-| Frontend | Vue.js, Vuetify, AJAX |
-| Backend | Python, Django |
-| AI / NLP | BERT (Hugging Face), LLaMA via Amazon Bedrock |
-| Data | PostgreSQL, Pandas |
-| Process | Scrum (weekly sprint reviews, daily check-ins), Git/GitHub |
+| **Frontend** | Vue.js, Vuetify, AJAX |
+| **Backend** | Python, Django |
+| **AI / NLP** | BERT (Hugging Face), LLaMA 3 (Amazon Bedrock), MiniLM |
+| **Data** | PostgreSQL, Pandas |
+| **Process** | Scrum: weekly sprint reviews, daily check-ins |
 
-## Features
+</td>
+</tr>
+</table>
 
-- 💬 Chat interface for natural-language questions
-- 🧠 Intent classification with BERT, with automatic out-of-scope detection
-- 🛢️ Text-to-SQL with LLaMA on Amazon Bedrock
-- 🔒 SQL validation: read-only, blocks destructive commands, prevents injection
-- 🌍 **8 languages**: the assistant always replies in the language selected in the UI, even when asked in another one
-- 🗂️ Short-term memory: the last 3 exchanges of the session are kept as context
-- 👍👎 Like/dislike feedback; critical dislikes notify the team by email
-- 📋 Session management with history and dates
-- ⚡ BERT model loaded once in memory (singleton)
-
-| Multilingual answers | Out-of-scope detection |
-|---|---|
-| ![Spanish](docs/chat-es.png) | ![Out of scope](docs/out-of-scope.png) |
-
-## API endpoints
+### API
 
 | Method | Endpoint | Parameters | Description |
 |---|---|---|---|
 | `GET` | `/chatbot/` | — | Assistant page (authenticated users) |
-| `POST` | `/chatbot/message/` | `question`, `session_id` (optional) | Sends a question and returns the answer, intent and generated SQL |
+| `POST` | `/chatbot/message/` | `question`, `session_id` (optional) | Returns the answer, the intent and the generated SQL |
 | `POST` | `/chatbot/report-dislike/` | `question`, `answer`, `sql` (optional) | Negative feedback; emails the team when critical |
 
-## Repository contents
+## 📸 Screenshots
 
-| File | Description |
+| Asked in Portuguese, answered in the selected language (Spanish) | Out-of-scope detection |
 |---|---|
-| [`PF_ER_Relatorio_8220307.pdf`](PF_ER_Relatorio_8220307.pdf) | Full internship report (Portuguese) |
-| [`PF_ER_Relatorio_8220307.docx`](PF_ER_Relatorio_8220307.docx) | Report source document |
-| [`Video/PF_ER_Video_8220307.mp4`](Video/PF_ER_Video_8220307.mp4) | Project demo video |
+| ![Spanish](docs/chat-es.png) | ![Out of scope](docs/out-of-scope.png) |
 
-> The source code belongs to StoresAce and is not included. This repository documents the work through the report, the diagrams and the demo.
+![Conversation in Portuguese](docs/chat-pt.png)
 
-## Future work
+## 📂 What's in this repository
 
-- Use the assistant to help the support team, suggesting answers from a StoresAce knowledge base
-- Store the intent model in a bucket (or the database) instead of a local file, for a more scalable, cloud-native setup
+> The source code belongs to StoresAce and is not published. This repository documents the project.
 
-## Author
+| | Files |
+|---|---|
+| 🎬 **Demo video** (1 min) | [`MP4`](Video/PF_ER_Video_8220307.mp4) |
+| 📊 **Jury presentation** | [`PDF`](Apresentacao/PF_ER_Apresentacao_8220307.pdf) · [`PowerPoint`](Apresentacao/PF_ER_Apresentacao_8220307.pptx) |
+| 📄 **Internship report** (Portuguese) | [`PDF`](PF_ER_Relatorio_8220307.pdf) · [`Word`](PF_ER_Relatorio_8220307.docx) |
 
-**Pedro Pinho** – [GitHub](https://github.com/PedroPinho17) · [LinkedIn](https://www.linkedin.com/in/pedropinho19/)
+## 🚀 Results & future work
+
+**Delivered:** a working assistant integrated into the StoresAce platform. It answers from real data in 8 languages and reduces the need to contact support for simple data lookups.
+
+**Next steps:**
+- Cover the remaining database tables and handle more complex questions
+- Grow into an AI help center that suggests answers to the support team from a knowledge base
+- Move the intent model from a local file to a cloud bucket for a scalable, cloud-native setup
+
+## 👤 Author
+
+**Pedro Pinho** · [GitHub](https://github.com/PedroPinho17) · [LinkedIn](https://www.linkedin.com/in/pedropinho19/)
 
 Supervisors: Prof. Marco Gomes (ESTG/P.Porto) · Eng. Ivo Marinho (StoresAce)
