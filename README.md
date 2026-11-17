@@ -99,6 +99,20 @@ SELECT item_name FROM ranked_items WHERE rn = 1;
 ```
 </details>
 
+## 🧭 From brief to delivery
+
+The internship started from a short brief: an AI assistant that answers questions about business data, with GPT or LLaMA turning questions into SQL. I spent the first weeks studying the suggested technologies and prototyping, then made these design decisions:
+
+| The brief suggested | What I built | Why |
+|---|---|---|
+| OpenAI GPT | **LLaMA 3 on Amazon Bedrock** | StoresAce already ran on AWS; after testing Titan, Mistral and LLaMA, LLaMA gave the best results |
+| Sending every question straight to the LLM | **BERT intent classifier first** | Out-of-scope questions are filtered out before any LLM call, so cost is lower and answers are more predictable |
+| Running the generated SQL as returned | **Validation layer**: read-only, whitelisted tables, qualified names | LLM output can't be trusted blindly in a production database |
+| Embeddings + RAG as a future improvement | **`reports_SA`**: existing tested report queries in the prompt | Same goal (reuse validated SQL), with less infrastructure |
+| Answering data questions | **Plus** 8 languages, conversation memory, like/dislike feedback | Needed to make it usable for real StoresAce customers |
+
+Business *recommendations* (e.g. pricing suggestions) were also part of the original idea and remain future work.
+
 ## 🏗️ Architecture
 
 <table>
@@ -150,6 +164,7 @@ SELECT item_name FROM ranked_items WHERE rn = 1;
 
 **Next steps:**
 - Cover the remaining database tables and handle more complex questions
+- Add business recommendations, such as pricing and profitability suggestions
 - Grow into an AI help center that suggests answers to the support team from a knowledge base
 - Move the intent model from a local file to a cloud bucket for a scalable, cloud-native setup
 

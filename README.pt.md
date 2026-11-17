@@ -99,6 +99,20 @@ SELECT item_name FROM ranked_items WHERE rn = 1;
 ```
 </details>
 
+## 🧭 Da proposta à entrega
+
+O estágio partiu de uma proposta curta: um assistente de IA que responde a perguntas sobre os dados do negócio, com GPT ou LLaMA a converter as perguntas em SQL. Passei as primeiras semanas a estudar as tecnologias sugeridas e a fazer protótipos, e depois tomei estas decisões:
+
+| A proposta sugeria | O que construí | Porquê |
+|---|---|---|
+| OpenAI GPT | **LLaMA 3 no Amazon Bedrock** | A StoresAce já trabalhava na AWS; depois de testar Titan, Mistral e LLaMA, o LLaMA deu os melhores resultados |
+| Enviar todas as perguntas diretamente ao LLM | **Classificador de intenções BERT primeiro** | As perguntas fora de âmbito são filtradas antes de chamar o LLM, o que reduz o custo e torna as respostas mais previsíveis |
+| Executar o SQL gerado tal como vem | **Camada de validação**: só leitura, tabelas autorizadas, nomes qualificados | Não se pode confiar cegamente no output de um LLM numa base de dados de produção |
+| Embeddings + RAG como melhoria futura | **`reports_SA`**: queries de reportes já testadas no prompt | O mesmo objetivo (reaproveitar SQL validado), com menos infraestrutura |
+| Responder a perguntas sobre os dados | **E ainda** 8 idiomas, memória de conversa e feedback gostei/não gostei | Necessário para ser utilizável pelos clientes reais da StoresAce |
+
+As *recomendações* de negócio (por exemplo, sugestões de preços) também faziam parte da ideia inicial e ficam como trabalho futuro.
+
 ## 🏗️ Arquitetura
 
 <table>
@@ -150,6 +164,7 @@ SELECT item_name FROM ranked_items WHERE rn = 1;
 
 **Próximos passos:**
 - Cobrir as restantes tabelas da base de dados e responder a perguntas mais complexas
+- Acrescentar recomendações de negócio, como sugestões de preços e rentabilidade
 - Evoluir para um help center com IA, que sugere respostas à equipa de suporte a partir de uma base de conhecimento
 - Passar o modelo de intenções de um ficheiro local para um bucket na cloud, numa solução escalável e cloud-native
 
